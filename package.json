@@ -1,0 +1,26 @@
+{
+  "name": "sci-profiler",
+  "version": "1.0.0",
+  "description": "Framework-agnostic Software Carbon Intensity (SCI) profiler for client-side applications",
+  "main": "src/sciProfiler.ts",
+  "types": "src/sciProfiler.ts",
+  "scripts": {
+    "example": "npx tsx examples/hello_world.ts"
+  },
+  "keywords": [
+    "sci",
+    "carbon",
+    "green-software",
+    "sustainability",
+    "profiler",
+    "energy",
+    "carbon-intensity",
+    "green-software-foundation"
+  ],
+  "author": "fullo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fullo/sci-profiler.git"
+  }
+}

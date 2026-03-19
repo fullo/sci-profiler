@@ -51,17 +51,34 @@ const _config: SciConfig = {
     machine: DEFAULT_MACHINE,
 };
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+declare const process: any;
+
+/** Detect if running in Node.js (vs browser). */
+const _isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+
+// ── Environment Variable Support (Node.js only) ────────────────────────────
+if (_isNode) {
+    const env = process.env;
+    if (env.SCI_PROFILER_DEVICE_POWER_W) _config.devicePowerW = Number(env.SCI_PROFILER_DEVICE_POWER_W);
+    if (env.SCI_PROFILER_CARBON_INTENSITY) _config.carbonIntensity = Number(env.SCI_PROFILER_CARBON_INTENSITY);
+    if (env.SCI_PROFILER_EMBODIED_TOTAL_G) _config.embodiedTotalG = Number(env.SCI_PROFILER_EMBODIED_TOTAL_G);
+    if (env.SCI_PROFILER_LIFETIME_HOURS) _config.lifetimeHours = Number(env.SCI_PROFILER_LIFETIME_HOURS);
+    if (env.SCI_PROFILER_LCA_SOURCE) _config.lcaSource = env.SCI_PROFILER_LCA_SOURCE;
+    if (env.SCI_PROFILER_MACHINE) _config.machine = env.SCI_PROFILER_MACHINE;
+}
+
 /**
  * Configure SCI parameters for your device. Only supply the values you want
  * to override — omitted fields keep their current value.
  */
 export function configureSci(overrides: Partial<SciConfig>): SciConfig {
     Object.assign(_config, overrides);
-    console.log(
-        '%c[SCI] Configuration updated:',
-        'color: #22c55e; font-weight: bold',
-        { ..._config },
-    );
+    if (_isNode) {
+        console.log('\x1b[32m[SCI]\x1b[0m Configuration updated:', { ..._config });
+    } else {
+        console.log('%c[SCI] Configuration updated:', 'color: #22c55e; font-weight: bold', { ..._config });
+    }
     return { ..._config };
 }
 
@@ -73,7 +90,11 @@ export function resetSciConfig(): SciConfig {
     _config.lifetimeHours = DEFAULT_LIFETIME_HOURS;
     _config.lcaSource = DEFAULT_LCA_SOURCE;
     _config.machine = DEFAULT_MACHINE;
-    console.log('%c[SCI] Configuration reset to defaults', 'color: #22c55e; font-weight: bold');
+    if (_isNode) {
+        console.log('\x1b[32m[SCI]\x1b[0m Configuration reset to defaults');
+    } else {
+        console.log('%c[SCI] Configuration reset to defaults', 'color: #22c55e; font-weight: bold');
+    }
     return { ..._config };
 }
 
@@ -95,10 +116,41 @@ export interface ProfileResult {
     sciMgCO2eq: number;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+/** PHP-compatible flat JSON line format (dot-notation keys). */
+export interface JsonLineReport {
+    profile_id: string;
+    timestamp: string;
+    tool: string;
+    'time.wall_time_ms': number;
+    'time.wall_time_sec': number;
+    'memory.heap_delta_bytes': number | null;
+    'io.input_bytes': number;
+    'io.output_bytes': number;
+    'sci.energy_kwh': number;
+    'sci.operational_carbon_gco2eq': number;
+    'sci.embodied_carbon_gco2eq': number;
+    'sci.sci_gco2eq': number;
+    'sci.sci_mgco2eq': number;
+    'config.device_power_w': number;
+    'config.carbon_intensity': number;
+    'config.embodied_total_g': number;
+    'config.lifetime_hours': number;
+    'config.machine': string;
+    'config.lca_source': string;
+}
+
 function getHeapUsed(): number | null {
     const mem = (performance as any).memory;
     return mem ? mem.usedJSHeapSize : null;
+}
+
+/** Generate a unique profile ID. */
+function generateProfileId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    // Fallback for older environments
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 // ── Core ────────────────────────────────────────────────────────────────────
@@ -160,12 +212,12 @@ function formatBytes(bytes: number): string {
 }
 
 export function printResult(r: ProfileResult): void {
-    console.log(
-        `%c[SCI] %c${r.tool}%c  ${r.wallTimeMs}ms  ${r.sciMgCO2eq.toFixed(3)} mgCO₂eq  (E=${r.carbonOperationalMg.toFixed(3)}mg + M=${r.carbonEmbodiedMg.toFixed(3)}mg)  in=${formatBytes(r.inputSizeBytes)} out=${formatBytes(r.outputSizeBytes)}`,
-        'color: #22c55e; font-weight: bold',
-        'color: #3b82f6; font-weight: bold',
-        'color: inherit',
-    );
+    const msg = `${r.tool}  ${r.wallTimeMs}ms  ${r.sciMgCO2eq.toFixed(3)} mgCO₂eq  (E=${r.carbonOperationalMg.toFixed(3)}mg + M=${r.carbonEmbodiedMg.toFixed(3)}mg)  in=${formatBytes(r.inputSizeBytes)} out=${formatBytes(r.outputSizeBytes)}`;
+    if (_isNode) {
+        console.log(`\x1b[32m[SCI]\x1b[0m \x1b[34m${msg}\x1b[0m`);
+    } else {
+        console.log(`%c[SCI] %c${msg}`, 'color: #22c55e; font-weight: bold', 'color: #3b82f6; font-weight: bold');
+    }
 }
 
 export function printSummary(results: ProfileResult[]): void {
@@ -183,11 +235,12 @@ export function printSummary(results: ProfileResult[]): void {
 
     const totalSci = results.reduce((sum, r) => sum + r.sciMgCO2eq, 0);
     const totalTime = results.reduce((sum, r) => sum + r.wallTimeMs, 0);
-    console.log(
-        `%c[SCI Summary] %c${results.length} tools  |  Total: ${totalSci.toFixed(3)} mgCO₂eq  |  ${totalTime}ms wall time`,
-        'color: #22c55e; font-weight: bold',
-        'color: inherit; font-weight: bold',
-    );
+    const summaryMsg = `${results.length} tools  |  Total: ${totalSci.toFixed(3)} mgCO₂eq  |  ${totalTime}ms wall time`;
+    if (_isNode) {
+        console.log(`\x1b[32m[SCI Summary]\x1b[0m \x1b[1m${summaryMsg}\x1b[0m`);
+    } else {
+        console.log(`%c[SCI Summary] %c${summaryMsg}`, 'color: #22c55e; font-weight: bold', 'color: inherit; font-weight: bold');
+    }
 }
 
 /**
@@ -222,6 +275,7 @@ export function generateMarkdownReport(results: ProfileResult[], meta: { commit:
 
 /**
  * Generate a JSON report entry for appending to sci-history.json.
+ * @deprecated Use `toJsonLine()` or `generateJsonLines()` for PHP-compatible format.
  */
 export function generateJsonReport(results: ProfileResult[], meta: { commit: string; machine?: string }): object {
     return {
@@ -244,4 +298,46 @@ export function generateJsonReport(results: ProfileResult[], meta: { commit: str
         })),
         totalSciMg: +results.reduce((sum, r) => sum + r.sciMgCO2eq, 0).toFixed(3),
     };
+}
+
+/**
+ * Convert a single ProfileResult to a flat JSON object using dot-notation keys,
+ * compatible with sci-profiler-php's JSONL format.
+ */
+export function toJsonLine(result: ProfileResult): JsonLineReport {
+    const wallTimeSec = result.wallTimeMs / 1000;
+    const sciGco2eq = result.sciMgCO2eq / 1000;
+    const opGco2eq = result.carbonOperationalMg / 1000;
+    const embGco2eq = result.carbonEmbodiedMg / 1000;
+
+    return {
+        'profile_id': generateProfileId(),
+        'timestamp': new Date().toISOString(),
+        'tool': result.tool,
+        'time.wall_time_ms': result.wallTimeMs,
+        'time.wall_time_sec': +wallTimeSec.toFixed(6),
+        'memory.heap_delta_bytes': result.heapDeltaBytes,
+        'io.input_bytes': result.inputSizeBytes,
+        'io.output_bytes': result.outputSizeBytes,
+        'sci.energy_kwh': result.energyKwh,
+        'sci.operational_carbon_gco2eq': +opGco2eq.toFixed(10),
+        'sci.embodied_carbon_gco2eq': +embGco2eq.toFixed(10),
+        'sci.sci_gco2eq': +sciGco2eq.toFixed(10),
+        'sci.sci_mgco2eq': +result.sciMgCO2eq.toFixed(4),
+        'config.device_power_w': _config.devicePowerW,
+        'config.carbon_intensity': _config.carbonIntensity,
+        'config.embodied_total_g': _config.embodiedTotalG,
+        'config.lifetime_hours': _config.lifetimeHours,
+        'config.machine': _config.machine,
+        'config.lca_source': _config.lcaSource,
+    };
+}
+
+/**
+ * Generate JSONL (JSON Lines) output from profiling results.
+ * Each result becomes one JSON line, compatible with sci-profiler-php.
+ * Pipe through `jq .sci.sci_mgco2eq` to extract SCI scores.
+ */
+export function generateJsonLines(results: ProfileResult[]): string {
+    return results.map((r) => JSON.stringify(toJsonLine(r))).join('\n');
 }

@@ -1,12 +1,21 @@
 # SCI Profiler
 
-A framework-agnostic [Software Carbon Intensity (SCI)](https://sci-guide.greensoftware.foundation/) profiler for client-side applications. Measures the carbon footprint of any async operation using the Green Software Foundation formula.
+A framework-agnostic [Software Carbon Intensity (SCI)](https://sci-guide.greensoftware.foundation/) profiler for TypeScript/JavaScript applications. Measures the carbon footprint of any async operation using the Green Software Foundation formula.
 
-**Zero dependencies. Single TypeScript file. Works in any browser or runtime.**
+**Zero dependencies. Single TypeScript file. Works in Node.js and any browser.**
+
+> Cross-platform companion to [sci-profiler-php](https://github.com/fullo/sci-profiler-php) — same SCI formula, same default constants, compatible JSON output.
 
 ## Quick Start
 
-Copy `src/sciProfiler.ts` into your project, then:
+```bash
+npm install     # install dev dependencies (vitest, typescript)
+npm run example # run the hello_world example
+npm test        # run the test suite
+npm run build   # compile to dist/
+```
+
+Copy `src/sciProfiler.ts` into your project (zero dependencies), then:
 
 ```ts
 import { profileTool, printResult } from './sciProfiler';
@@ -27,7 +36,7 @@ printResult(result);
 
 ## Example
 
-See [`examples/hello_world.ts`](examples/hello_world.ts) for a complete working example:
+See [`examples/hello_world.ts`](examples/hello_world.ts) for a complete working example, or [`examples/profile_the_profiler.ts`](examples/profile_the_profiler.ts) for a meta-benchmark that profiles the profiler itself.
 
 ```ts
 import {
@@ -35,16 +44,13 @@ import {
     configureSci,
     printResult,
     printSummary,
-    generateJsonReport,
+    toJsonLine,
+    generateJsonLines,
 } from './src/sciProfiler';
 
 // 1. Configure for your device (optional — defaults to MacBook Pro M1 Pro)
 configureSci({
-    devicePowerW: 15,               // Software-attributable device power (Watts)
-    // carbonIntensity: 332,         // Grid carbon intensity (gCO₂eq/kWh) for your region
-    // embodiedTotalG: 211_000,      // Embodied carbon excluding use-phase (grams CO₂e)
-    // lifetimeHours: 11_680,        // Device lifetime in hours (e.g. 4 years × 365d × 8h)
-    // lcaSource: 'Apple 14-inch MacBook Pro PER Oct 2021',
+    devicePowerW: 15,
     machine: 'MacBook Air M2, 8GB, macOS 15',
 });
 
@@ -60,14 +66,16 @@ const result = await profileTool(
 
 printResult(result);
 
-// 3. Generate reports
-const report = generateJsonReport([result], { commit: 'abc123' });
+// 3. Generate PHP-compatible JSONL report
+console.log(generateJsonLines([result]));
+// → {"profile_id":"...","tool":"sort-array","time.wall_time_ms":42,"sci.sci_mgco2eq":0.092,...}
 ```
 
-Run the example with:
+Run examples with:
 
 ```bash
 npx tsx examples/hello_world.ts
+npx tsx examples/profile_the_profiler.ts
 ```
 
 ## API Reference
@@ -114,6 +122,8 @@ configureSci({
 });
 ```
 
+You can also configure via environment variables in Node.js (see [Configuration](doc/configuration.md)).
+
 ### `getSciConfig()`
 
 Returns a copy of the current configuration.
@@ -122,44 +132,100 @@ Returns a copy of the current configuration.
 
 Resets all parameters to their defaults.
 
-### `printResult(result)`
+### `toJsonLine(result)`
 
-Prints a single result to the console with color formatting.
+Converts a single `ProfileResult` to a flat JSON object using dot-notation keys, compatible with [sci-profiler-php](https://github.com/fullo/sci-profiler-php). Returns a typed `JsonLineReport`.
 
-### `printSummary(results)`
+```ts
+const line = toJsonLine(result);
+// → { "profile_id": "uuid", "tool": "...", "time.wall_time_ms": 42, "sci.sci_mgco2eq": 0.092, ... }
+```
 
-Prints a `console.table()` summary of multiple results.
+### `generateJsonLines(results)`
 
-### `generateJsonReport(results, meta)`
+Generates JSONL (JSON Lines) output from an array of results. Each result becomes one JSON line. Compatible with `jq`:
 
-Generates a JSON report object. `meta` requires `commit: string` and optionally `machine: string`.
+```bash
+npx tsx examples/hello_world.ts 2>/dev/null | grep '^{' | jq '.["sci.sci_mgco2eq"]'
+```
+
+### `generateJsonReport(results, meta)` *(deprecated)*
+
+Generates a legacy nested JSON report. Use `toJsonLine()` or `generateJsonLines()` instead for PHP-compatible output.
 
 ### `generateMarkdownReport(results, meta)`
 
-Generates a markdown report table. Same `meta` as above.
+Generates a markdown report table. `meta` requires `commit: string` and optionally `machine: string`.
+
+### `printResult(result)`
+
+Prints a single result to the console with color formatting. Works in both Node.js (ANSI) and browser (CSS).
+
+### `printSummary(results)`
+
+Prints a `console.table()` summary of multiple results with totals.
+
+## Output Formats
+
+The profiler supports multiple output formats. See [Reporters](doc/reporters.md) for full details.
+
+| Format | Function | Description |
+|--------|----------|-------------|
+| **JSONL** (preferred) | `toJsonLine()` / `generateJsonLines()` | Flat dot-notation, PHP-compatible |
+| **Console** | `printResult()` / `printSummary()` | Colored output, auto-detects Node.js/browser |
+| **Markdown** | `generateMarkdownReport()` | Table format for CI/README |
+| **JSON** (legacy) | `generateJsonReport()` | Nested format, deprecated |
+
+## Configuration
+
+Configuration can be set via:
+
+1. **`configureSci()` API** — programmatic, works everywhere
+2. **Environment variables** — `SCI_PROFILER_*`, Node.js only
+3. **Built-in defaults** — Apple MacBook Pro M1 Pro LCA data
+
+See [Configuration](doc/configuration.md) for full details.
 
 ## Default Parameters
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `devicePowerW` | 18 | Software-attributable device power (Watts) |
-| `carbonIntensity` | 332 | Grid carbon intensity (gCO₂eq/kWh) |
-| `embodiedTotalG` | 211,000 | Embodied carbon excluding use-phase (grams CO₂e) |
-| `lifetimeHours` | 11,680 | Device lifetime (hours) |
-| `lcaSource` | Apple 14-inch MacBook Pro PER Oct 2021 | LCA data source description |
-| `machine` | 14-inch MacBook Pro M1 Pro, 16GB, macOS 15.3 | Machine description for reports |
+| Parameter | Default | Source |
+|-----------|---------|--------|
+| `devicePowerW` | 18 | M1 Pro power measurements |
+| `carbonIntensity` | 332 | GitHub Actions median (gCO₂eq/kWh) |
+| `embodiedTotalG` | 211,000 | Apple LCA: 271kg total − 59.6kg use-phase |
+| `lifetimeHours` | 11,680 | 4 years × 365d × 8h/d |
+| `lcaSource` | Apple 14-inch MacBook Pro PER Oct 2021 | |
+| `machine` | 14-inch MacBook Pro M1 Pro, 16GB, macOS 15.3 | |
 
 Defaults are sourced from the [Apple 14-inch MacBook Pro Product Environmental Report (Oct 2021)](https://www.apple.com/environment/pdf/products/notebooks/14-inch_MacBook_Pro_PER_Oct2021.pdf). See [METHODOLOGY.md](METHODOLOGY.md) for the full derivation.
 
+## Cross-Platform Compatibility
+
+The JSONL output format is designed to be compatible with [sci-profiler-php](https://github.com/fullo/sci-profiler-php). Both profilers share the same:
+
+- SCI formula: `SCI = ((E × I) + M) / R`
+- Default constants (18W, 332 gCO₂eq/kWh, 211,000g embodied, 11,680h lifetime)
+- JSON field names (`sci.sci_mgco2eq`, `time.wall_time_ms`, etc.)
+
+See [Cross-Platform Compatibility](doc/cross-platform.md) for details on field mapping and analysis workflows.
+
 ## Integration
+
+### npm package
+
+```bash
+npm install sci-profiler
+```
+
+```ts
+import { profileTool } from 'sci-profiler';
+```
 
 ### As a git submodule
 
 ```bash
 git submodule add https://github.com/fullo/sci-profiler.git lib/sci-profiler
 ```
-
-Then import in your project:
 
 ```ts
 import { profileTool } from './lib/sci-profiler/src/sciProfiler';
@@ -169,15 +235,23 @@ import { profileTool } from './lib/sci-profiler/src/sciProfiler';
 
 Copy `src/sciProfiler.ts` into your project. It has zero dependencies and zero imports.
 
-## Methodology
+## Documentation
 
-See [METHODOLOGY.md](METHODOLOGY.md) for the full scientific methodology, including:
+| Document | Description |
+|----------|-------------|
+| [METHODOLOGY.md](METHODOLOGY.md) | SCI formula, energy model, LCA data sources, limitations |
+| [doc/configuration.md](doc/configuration.md) | All configuration methods (API, env vars, defaults) |
+| [doc/reporters.md](doc/reporters.md) | Output formats (JSONL, console, markdown, JSON) |
+| [doc/cross-platform.md](doc/cross-platform.md) | PHP compatibility, field mapping, analysis workflows |
 
-- The SCI formula and how each variable is computed
-- Why wall time is used and how it relates to CPU cycles and energy
-- The constant power model and its assumptions
-- How embodied carbon is amortized from device LCA data
-- Known limitations and how to improve accuracy
+### Framework Integration Guides
+
+| Guide | Description |
+|-------|-------------|
+| [doc/example-react.md](doc/example-react.md) | React / Next.js — hooks, SSR, SSG, data fetching |
+| [doc/example-angular.md](doc/example-angular.md) | Angular — services, interceptors, Universal SSR, RxJS |
+| [doc/example-vite.md](doc/example-vite.md) | Vite / build tools — plugins, bundling, HMR, CI pipelines |
+| [doc/example-node.md](doc/example-node.md) | Node.js / Express / Fastify — middleware, jobs, CLI scripts |
 
 ## License
 

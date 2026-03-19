@@ -25,7 +25,7 @@ The result is expressed in **mgCO₂eq per operation** (milligrams of CO₂ equi
 
 **Wall time** (wall-clock time) is the real elapsed time between the start and end of an operation, as measured by an external clock. It is the duration a user would perceive waiting for an operation to complete.
 
-In browsers, we measure it via the [Performance API](https://developer.mozilla.org/en-US/docs/Web/API/Performance/now):
+We measure it via the [Performance API](https://developer.mozilla.org/en-US/docs/Web/API/Performance/now), available in both browsers and Node.js:
 
 ```ts
 const t0 = performance.now();
@@ -34,7 +34,7 @@ const t1 = performance.now();
 const wallTimeMs = t1 - t0;  // milliseconds, ~5μs resolution
 ```
 
-`performance.now()` returns a high-resolution timestamp from a monotonic clock. It is not affected by system clock adjustments (NTP, manual changes) and provides microsecond-level precision in modern browsers.
+`performance.now()` returns a high-resolution timestamp from a monotonic clock. It is not affected by system clock adjustments (NTP, manual changes) and provides microsecond-level precision in modern browsers and Node.js (since v8.5.0).
 
 ### Wall time vs CPU time
 
@@ -51,13 +51,15 @@ The gap between them depends on the workload type:
 - **I/O-bound** (network requests, disk reads): wall time >> CPU time, because the CPU idles while waiting for I/O
 - **Mixed**: somewhere in between
 
-For **client-side browser operations running in Web Workers** — which is the primary use case of this profiler — operations are almost entirely CPU-bound. There is no disk I/O, no network calls, and no UI thread contention. The Web Worker runs the operation to completion on a dedicated thread. In this context, **wall time is a close approximation of CPU time**.
+For **CPU-bound operations** — whether running in browser Web Workers or Node.js scripts — operations are almost entirely compute-bound. In the browser there is no disk I/O, no network calls, and no UI thread contention. In Node.js, the profiled async function runs to completion on the event loop. In both contexts, **wall time is a close approximation of CPU time** for CPU-bound workloads.
 
 ### Why not measure CPU cycles directly?
 
 Browsers do not expose hardware performance counters (like `rdtsc` on x86 or `perf_events` on Linux). This is intentional — exposing cycle-accurate timing creates side-channel attack vectors (Spectre, Meltdown). The `performance.now()` API is the highest-resolution timing primitive available in browser environments.
 
-Server-side tools like `perf stat` or Intel RAPL can measure actual CPU cycles and energy consumption at the hardware level, but these are not available in the browser sandbox.
+In Node.js, `process.cpuUsage()` is available but measures the entire process, not individual operations. For isolated profiling of async functions, `performance.now()` provides the most accurate per-operation timing.
+
+Server-side tools like `perf stat` or Intel RAPL can measure actual CPU cycles and energy consumption at the hardware level, but these are OS-level APIs not available from within JavaScript.
 
 ### Why wall time works for energy estimation
 
@@ -159,9 +161,11 @@ Users should substitute their own device's LCA data. Most major manufacturers pu
 
 4. **Single-run variance**: For reliable results, multiple runs should be averaged. Factors like JIT compilation warmup, garbage collection pauses, and thermal throttling can affect individual measurements.
 
-5. **Heap measurement**: `performance.memory` is Chrome-only. Firefox, Safari, and other browsers return `null` for heap delta.
+5. **Heap measurement**: `performance.memory` is Chrome-only. Firefox, Safari, Node.js, and other runtimes return `null` for heap delta.
 
 6. **No GPU accounting**: The energy model only considers CPU power. Operations that heavily use the GPU (e.g., WebGL, canvas compositing) will have their energy underestimated.
+
+7. **No CPU time in JavaScript**: Unlike [sci-profiler-php](https://github.com/fullo/sci-profiler-php) which can measure CPU user/system time via `getrusage()`, JavaScript runtimes do not expose per-operation CPU time. The profiler relies on wall time as the best available proxy.
 
 ## References
 

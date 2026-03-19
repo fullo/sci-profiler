@@ -11,12 +11,15 @@ import {
     configureSci,
     printResult,
     printSummary,
+    toJsonLine,
+    generateJsonLines,
     generateJsonReport,
     generateMarkdownReport,
 } from '../src/sciProfiler';
 
 // ── 1. Configure for your device (optional) ─────────────────────────────────
 // Only supply the values you want to override — omitted fields keep defaults.
+// You can also set SCI_PROFILER_* env vars in Node.js.
 configureSci({
     devicePowerW: 15,               // Software-attributable device power (Watts)
     // carbonIntensity: 332,         // Grid carbon intensity (gCO₂eq/kWh) for your region
@@ -50,33 +53,24 @@ const parsing = await profileTool(
 );
 printResult(parsing);
 
-// Canvas rendering example (browser only)
-// const rendering = await profileTool(
-//     'canvas-render',
-//     async () => {
-//         const canvas = document.createElement('canvas');
-//         canvas.width = 1920; canvas.height = 1080;
-//         const ctx = canvas.getContext('2d')!;
-//         for (let i = 0; i < 10000; i++) {
-//             ctx.fillStyle = `hsl(${i % 360}, 70%, 50%)`;
-//             ctx.fillRect(Math.random() * 1920, Math.random() * 1080, 10, 10);
-//         }
-//         return canvas.toDataURL();
-//     },
-//     0,
-//     (dataUrl) => dataUrl.length,
-// );
-// printResult(rendering);
-
 // ── 3. Print summary table ───────────────────────────────────────────────────
 const results = [sorting, parsing];
 printSummary(results);
 
-// ── 4. Generate reports ──────────────────────────────────────────────────────
+// ── 4. JSONL Report (PHP-compatible flat format) ─────────────────────────────
+console.log('\n── JSONL Report (PHP-compatible) ──');
+console.log(generateJsonLines(results));
+
+// ── 5. Single JSON line ──────────────────────────────────────────────────────
+console.log('\n── Single JSON line (pretty) ──');
+console.log(JSON.stringify(toJsonLine(sorting), null, 2));
+
+// ── 6. Legacy JSON Report ────────────────────────────────────────────────────
 const jsonReport = generateJsonReport(results, { commit: 'hello-world' });
-console.log('\n── JSON Report ──');
+console.log('\n── Legacy JSON Report ──');
 console.log(JSON.stringify(jsonReport, null, 2));
 
+// ── 7. Markdown Report ──────────────────────────────────────────────────────
 const mdReport = generateMarkdownReport(results, { commit: 'hello-world' });
 console.log('\n── Markdown Report ──');
 console.log(mdReport);

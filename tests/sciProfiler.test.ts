@@ -383,6 +383,19 @@ describe('printSummary', () => {
         resetSciConfig();
     });
 
+    it('handles empty results array', async () => {
+        const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => {});
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        printSummary([]);
+        expect(tableSpy).toHaveBeenCalledOnce();
+        const tableData = tableSpy.mock.calls[0][0] as any[];
+        expect(tableData).toHaveLength(0);
+        const summaryOutput = logSpy.mock.calls[0][0] as string;
+        expect(summaryOutput).toContain('0 tools');
+        tableSpy.mockRestore();
+        logSpy.mockRestore();
+    });
+
     it('calls console.table and console.log', async () => {
         const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => {});
         const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -408,5 +421,179 @@ describe('printSummary', () => {
 
         tableSpy.mockRestore();
         logSpy.mockRestore();
+    });
+});
+
+// ── Edge Cases ───────────────────────────────────────────────────────────────
+
+describe('edge cases: profileTool', () => {
+    beforeEach(() => {
+        resetSciConfig();
+    });
+
+    it('propagates exceptions from the operation', async () => {
+        await expect(
+            profileTool('throws', async () => { throw new Error('boom'); }),
+        ).rejects.toThrow('boom');
+    });
+
+    it('handles near-zero execution time', async () => {
+        const result = await profileTool('instant', async () => null);
+        expect(result.wallTimeMs).toBeGreaterThanOrEqual(0);
+        expect(result.energyKwh).toBeGreaterThanOrEqual(0);
+        expect(result.sciMgCO2eq).toBeGreaterThanOrEqual(0);
+    });
+
+    it('handles empty string name', async () => {
+        const result = await profileTool('', async () => null);
+        expect(result.tool).toBe('');
+    });
+
+    it('handles special characters in name', async () => {
+        const result = await profileTool('op/with|special<chars>&"quotes"', async () => null);
+        expect(result.tool).toBe('op/with|special<chars>&"quotes"');
+        // Verify it survives JSON serialization
+        const line = toJsonLine(result);
+        const json = JSON.stringify(line);
+        const parsed = JSON.parse(json);
+        expect(parsed.tool).toBe('op/with|special<chars>&"quotes"');
+    });
+
+    it('returns the operation result correctly', async () => {
+        const result = await profileTool('return-val', async () => ({ key: 'value', num: 42 }));
+        // profileTool returns ProfileResult, not the operation result
+        expect(result.tool).toBe('return-val');
+    });
+});
+
+describe('edge cases: configureSci with extreme values', () => {
+    beforeEach(() => {
+        resetSciConfig();
+    });
+
+    it('handles zero devicePowerW (no energy)', async () => {
+        configureSci({ devicePowerW: 0 });
+        const r = await profileTool('zero-power', async () => {
+            const s = Date.now(); while (Date.now() - s < 5) {}
+        });
+        expect(r.energyKwh).toBe(0);
+        expect(r.carbonOperationalMg).toBe(0);
+        // Embodied still > 0 (independent of power)
+        expect(r.carbonEmbodiedMg).toBeGreaterThan(0);
+    });
+
+    it('handles zero carbonIntensity (clean grid)', async () => {
+        configureSci({ carbonIntensity: 0 });
+        const r = await profileTool('clean-grid', async () => {
+            const s = Date.now(); while (Date.now() - s < 5) {}
+        });
+        expect(r.carbonOperationalMg).toBe(0);
+        expect(r.carbonEmbodiedMg).toBeGreaterThan(0);
+        expect(r.sciMgCO2eq).toBe(r.carbonEmbodiedMg);
+    });
+
+    it('handles zero embodiedTotalG', async () => {
+        configureSci({ embodiedTotalG: 0 });
+        const r = await profileTool('no-embodied', async () => {
+            const s = Date.now(); while (Date.now() - s < 5) {}
+        });
+        expect(r.carbonEmbodiedMg).toBe(0);
+        expect(r.sciMgCO2eq).toBe(r.carbonOperationalMg);
+    });
+
+    it('handles very large power value', async () => {
+        configureSci({ devicePowerW: 10_000 });
+        const r = await profileTool('high-power', async () => {
+            const s = Date.now(); while (Date.now() - s < 5) {}
+        });
+        expect(r.energyKwh).toBeGreaterThan(0);
+        expect(Number.isFinite(r.sciMgCO2eq)).toBe(true);
+    });
+
+    it('multiple configureSci calls accumulate overrides', () => {
+        configureSci({ devicePowerW: 10 });
+        configureSci({ carbonIntensity: 100 });
+        const cfg = getSciConfig();
+        expect(cfg.devicePowerW).toBe(10);
+        expect(cfg.carbonIntensity).toBe(100);
+        // Others unchanged
+        expect(cfg.embodiedTotalG).toBe(DEFAULT_EMBODIED_TOTAL_G);
+    });
+});
+
+describe('edge cases: toJsonLine', () => {
+    beforeEach(() => {
+        resetSciConfig();
+    });
+
+    it('generates unique profile_id per call', async () => {
+        const r = await profileTool('id-test', async () => null);
+        const line1 = toJsonLine(r);
+        const line2 = toJsonLine(r);
+        expect(line1.profile_id).not.toBe(line2.profile_id);
+    });
+
+    it('timestamp is valid ISO 8601', async () => {
+        const r = await profileTool('ts-test', async () => null);
+        const line = toJsonLine(r);
+        const parsed = new Date(line.timestamp);
+        expect(parsed.toISOString()).toBe(line.timestamp);
+    });
+
+    it('handles null heapDeltaBytes', async () => {
+        const r = await profileTool('heap-null', async () => null);
+        const line = toJsonLine(r);
+        // In Node.js, performance.memory is undefined → null
+        expect(line['memory.heap_delta_bytes']).toBeNull();
+    });
+});
+
+describe('edge cases: generateJsonLines', () => {
+    it('returns empty string for empty array', () => {
+        const result = generateJsonLines([]);
+        expect(result).toBe('');
+    });
+});
+
+describe('edge cases: generateJsonReport', () => {
+    beforeEach(() => {
+        resetSciConfig();
+    });
+
+    it('handles empty results array', () => {
+        const report = generateJsonReport([], { commit: 'empty' }) as any;
+        expect(report.results).toHaveLength(0);
+        expect(report.totalSciMg).toBe(0);
+    });
+
+    it('date is valid ISO 8601', async () => {
+        const r = await profileTool('date-test', async () => null);
+        const report = generateJsonReport([r], { commit: 'x' }) as any;
+        const parsed = new Date(report.date);
+        expect(parsed.toISOString()).toBe(report.date);
+    });
+});
+
+describe('edge cases: generateMarkdownReport', () => {
+    beforeEach(() => {
+        resetSciConfig();
+    });
+
+    it('handles empty results array', () => {
+        const md = generateMarkdownReport([], { commit: 'empty' });
+        expect(md).toContain('# SCI Benchmark Report');
+        expect(md).toContain('**Total**: 0.000 mgCO₂eq across 0 tools');
+    });
+
+    it('special characters in tool name are preserved in markdown', async () => {
+        const r = await profileTool('op|with<chars>', async () => null);
+        const md = generateMarkdownReport([r], { commit: 'x' });
+        expect(md).toContain('op|with<chars>');
+    });
+
+    it('uses custom machine from meta', async () => {
+        const r = await profileTool('meta-test', async () => null);
+        const md = generateMarkdownReport([r], { commit: 'x', machine: 'Custom Box' });
+        expect(md).toContain('Custom Box');
     });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
     profileTool,
     configureSci,
@@ -8,6 +8,8 @@ import {
     generateMarkdownReport,
     toJsonLine,
     generateJsonLines,
+    printResult,
+    printSummary,
     DEFAULT_DEVICE_POWER_W,
     DEFAULT_CARBON_INTENSITY,
     DEFAULT_EMBODIED_TOTAL_G,
@@ -322,5 +324,89 @@ describe('generateJsonLines', () => {
         const parsed = JSON.parse(lines);
         expect(typeof parsed['sci.sci_mgco2eq']).toBe('number');
         expect(typeof parsed['time.wall_time_ms']).toBe('number');
+    });
+});
+
+// ── printResult ──────────────────────────────────────────────────────────────
+
+describe('printResult', () => {
+    beforeEach(() => {
+        resetSciConfig();
+    });
+
+    it('logs to console with tool name and SCI score', async () => {
+        const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const r = await profileTool('print-test', async () => {
+            const s = Date.now(); while (Date.now() - s < 5) {}
+        });
+        printResult(r);
+        expect(spy).toHaveBeenCalled();
+        const output = spy.mock.calls[0][0] as string;
+        expect(output).toContain('print-test');
+        expect(output).toContain('mgCO');
+        spy.mockRestore();
+    });
+
+    it('formats bytes correctly in output', async () => {
+        const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const r = await profileTool(
+            'bytes-test',
+            async () => 'x'.repeat(2048),
+            512,
+            (s) => s.length,
+        );
+        printResult(r);
+        const output = spy.mock.calls[0][0] as string;
+        expect(output).toContain('512 B');
+        expect(output).toContain('2.0 KB');
+        spy.mockRestore();
+    });
+
+    it('formats megabytes in output', async () => {
+        const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const r = await profileTool(
+            'mb-test',
+            async () => null,
+            2 * 1024 * 1024,
+        );
+        printResult(r);
+        const output = spy.mock.calls[0][0] as string;
+        expect(output).toContain('2.00 MB');
+        spy.mockRestore();
+    });
+});
+
+// ── printSummary ─────────────────────────────────────────────────────────────
+
+describe('printSummary', () => {
+    beforeEach(() => {
+        resetSciConfig();
+    });
+
+    it('calls console.table and console.log', async () => {
+        const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => {});
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+        const r1 = await profileTool('sum-a', async () => {
+            const s = Date.now(); while (Date.now() - s < 5) {}
+        });
+        const r2 = await profileTool('sum-b', async () => {
+            const s = Date.now(); while (Date.now() - s < 5) {}
+        });
+        printSummary([r1, r2]);
+
+        expect(tableSpy).toHaveBeenCalledOnce();
+        const tableData = tableSpy.mock.calls[0][0] as any[];
+        expect(tableData).toHaveLength(2);
+        expect(tableData[0].Tool).toBe('sum-a');
+        expect(tableData[1].Tool).toBe('sum-b');
+
+        expect(logSpy).toHaveBeenCalled();
+        const summaryOutput = logSpy.mock.calls[0][0] as string;
+        expect(summaryOutput).toContain('2 tools');
+        expect(summaryOutput).toContain('mgCO');
+
+        tableSpy.mockRestore();
+        logSpy.mockRestore();
     });
 });

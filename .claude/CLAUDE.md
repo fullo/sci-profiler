@@ -32,6 +32,7 @@ Before every push to the repository:
 5. **Update ALL documentation**: this is **mandatory** after every code change. Documents to check and update:
    - `README.md` — API reference, examples, feature list
    - `METHODOLOGY.md` — if SCI calculation or energy model changed
+   - `doc/api-reference.md` — if public API signatures or types changed
    - `doc/configuration.md` — if config options or env vars changed
    - `doc/reporters.md` — if output formats changed
    - `doc/cross-platform.md` — if JSON fields or PHP compatibility changed
@@ -68,6 +69,7 @@ If any function exceeds its threshold, investigate before pushing.
 - `METHODOLOGY.md` — scientific methodology and LCA data sources
 - `doc/configuration.md` — all configuration methods
 - `doc/reporters.md` — output format documentation
+- `doc/api-reference.md` — full API reference with types and examples
 - `doc/cross-platform.md` — PHP compatibility guide
 - `doc/example-react.md` — React / Next.js integration guide
 - `doc/example-angular.md` — Angular integration guide

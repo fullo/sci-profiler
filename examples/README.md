@@ -55,12 +55,12 @@ npx tsx examples/profile_the_profiler.ts
 
 ### [`generate_reports.ts`](generate_reports.ts)
 
-**Write report files** — profiles sample operations and the profiler itself, then writes results to `reports/`:
+**Write report files** — profiles sample operations and the profiler itself, then writes results to [`reports/`](reports/):
 
-- `reports/sci-profiler.jsonl` — benchmark results in PHP-compatible JSONL
-- `reports/benchmark.md` — benchmark results as markdown table
-- `reports/profiler-overhead.jsonl` — self-profiling data
-- `reports/profiler-overhead.md` — self-profiling summary with per-call cost table
+- [`reports/sci-profiler.jsonl`](reports/sci-profiler.jsonl) — benchmark results in PHP-compatible JSONL
+- [`reports/benchmark.md`](reports/benchmark.md) — benchmark results as markdown table
+- [`reports/profiler-overhead.jsonl`](reports/profiler-overhead.jsonl) — self-profiling data
+- [`reports/profiler-overhead.md`](reports/profiler-overhead.md) — self-profiling summary with per-call cost table
 
 ```bash
 npx tsx examples/generate_reports.ts

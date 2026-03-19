@@ -36,4 +36,5 @@ Runnable examples are in the [`examples/`](../examples/) directory:
 |---------|---------|-------------|
 | [hello_world.ts](../examples/hello_world.ts) | `npm run example` | Quick start — profile, configure, report |
 | [report_formats.ts](../examples/report_formats.ts) | `npx tsx examples/report_formats.ts` | All 5 output formats side by side |
+| [generate_reports.ts](../examples/generate_reports.ts) | `npx tsx examples/generate_reports.ts` | Write JSONL + markdown reports to [`examples/reports/`](../examples/reports/) |
 | [profile_the_profiler.ts](../examples/profile_the_profiler.ts) | `npx tsx examples/profile_the_profiler.ts` | Meta-benchmark: SCI cost of the profiler itself |

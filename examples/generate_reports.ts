@@ -2,10 +2,10 @@
  * SCI Profiler — Generate Report Files
  *
  * Profiles sample operations and writes all report formats to the reports/ directory:
- *   - reports/sci-profiler.jsonl    (PHP-compatible, append-only)
- *   - reports/benchmark.md          (Markdown table)
- *   - reports/profiler-overhead.jsonl (self-profiling data)
- *   - reports/profiler-overhead.md   (self-profiling markdown)
+ *   - examples/reports/sci-profiler.jsonl    (PHP-compatible, append-only)
+ *   - examples/reports/benchmark.md          (Markdown table)
+ *   - examples/reports/profiler-overhead.jsonl (self-profiling data)
+ *   - examples/reports/profiler-overhead.md   (self-profiling markdown)
  *
  * Run: npx tsx examples/generate_reports.ts
  */
@@ -23,7 +23,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const reportsDir = resolve(__dirname, '..', 'reports');
+const reportsDir = resolve(__dirname, 'reports');
 mkdirSync(reportsDir, { recursive: true });
 
 // ── Configuration ───────────────────────────────────────────────────────────

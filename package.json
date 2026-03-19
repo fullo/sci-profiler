@@ -8,6 +8,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "build": "npx tsc -p tsconfig.build.json",
     "example": "npx tsx examples/hello_world.ts"
   },
@@ -28,6 +29,7 @@
     "url": "https://github.com/fullo/sci-profiler.git"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
   }

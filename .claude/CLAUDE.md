@@ -10,6 +10,7 @@ Works in both Node.js and browser environments. Zero production dependencies.
 
 ```bash
 npm test               # Run Vitest test suite
+npm run test:coverage  # Run tests with v8 coverage report
 npm run build          # Compile TypeScript to dist/
 npm run example        # Run hello_world example with tsx
 npx tsx examples/profile_the_profiler.ts  # Profile the profiler itself
@@ -75,6 +76,7 @@ If any function exceeds its threshold, investigate before pushing.
 - `doc/example-angular.md` — Angular integration guide
 - `doc/example-vite.md` — Vite / build tools integration guide
 - `doc/example-node.md` — Node.js / Express / Fastify integration guide
+- `.github/workflows/ci.yml` — GitHub Actions CI (test + build on Node 18/20/22)
 
 ### Core Components (all in `src/sciProfiler.ts`)
 

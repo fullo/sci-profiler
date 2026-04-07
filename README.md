@@ -82,7 +82,7 @@ The **functional unit** is a complete user-facing operation — a data fetch, a 
 ## Development
 
 ```bash
-npm test        # Run Vitest test suite (31 tests)
+npm test        # Run Vitest test suite (55 tests)
 npm run build   # Compile TypeScript to dist/
 npm run example # Run hello_world example
 ```

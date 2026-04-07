@@ -191,16 +191,6 @@ All exported and overridable via `configureSci()`:
 
 ## Integration
 
-### npm package
-
-```bash
-npm install sci-profiler
-```
-
-```ts
-import { profileTool } from 'sci-profiler';
-```
-
 ### Git submodule
 
 ```bash

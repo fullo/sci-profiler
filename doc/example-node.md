@@ -24,9 +24,12 @@ Automatically profile every request:
 
 ```typescript
 // middleware/sci-profiler.ts
-import { profileTool, toJsonLine } from 'sci-profiler/src/sciProfiler';
-import { appendFileSync } from 'fs';
+import { profileTool, toJsonLine, getSciConfig } from 'sci-profiler/src/sciProfiler';
+import { appendFileSync, mkdirSync } from 'fs';
 import type { Request, Response, NextFunction } from 'express';
+
+const LOG_PATH = '/tmp/sci-profiler/sci-profiler.jsonl';
+mkdirSync('/tmp/sci-profiler', { recursive: true });
 
 export function sciProfilerMiddleware() {
     return (req: Request, res: Response, next: NextFunction) => {
@@ -35,27 +38,18 @@ export function sciProfilerMiddleware() {
 
         const originalSend = res.send.bind(res);
         res.send = function (body: any) {
-            const wallTimeMs = performance.now() - startTime;
             const outputBytes = typeof body === 'string' ? body.length : Buffer.byteLength(body || '');
 
-            // Create a manual ProfileResult-compatible JSONL entry
-            const line = {
-                profile_id: crypto.randomUUID(),
-                timestamp: new Date().toISOString(),
-                tool: `${req.method.toLowerCase()}-${req.route?.path || req.path}`,
-                'time.wall_time_ms': Math.round(wallTimeMs),
-                'time.wall_time_sec': +(wallTimeMs / 1000).toFixed(6),
-                'memory.heap_delta_bytes': null,
-                'io.input_bytes': inputBytes,
-                'io.output_bytes': outputBytes,
-                'request.method': req.method,
-                'request.uri': req.originalUrl,
-                'request.response_code': res.statusCode,
-            };
-
-            appendFileSync('/tmp/sci-profiler/sci-profiler.jsonl',
-                JSON.stringify(line) + '\n'
-            );
+            // Profile a no-op to compute SCI for the measured wall time
+            profileTool(
+                `${req.method.toLowerCase()}-${req.route?.path || req.path}`,
+                async () => body,
+                inputBytes,
+                () => outputBytes,
+            ).then(profiled => {
+                const line = toJsonLine(profiled);
+                appendFileSync(LOG_PATH, JSON.stringify(line) + '\n');
+            });
 
             return originalSend(body);
         };
@@ -84,8 +78,11 @@ if (process.env.NODE_ENV !== 'production') {
 ```typescript
 // plugins/sci-profiler.ts
 import { profileTool, toJsonLine } from 'sci-profiler/src/sciProfiler';
-import { appendFileSync } from 'fs';
+import { appendFileSync, mkdirSync } from 'fs';
 import type { FastifyPluginAsync } from 'fastify';
+
+const LOG_PATH = '/tmp/sci-profiler/sci-profiler.jsonl';
+mkdirSync('/tmp/sci-profiler', { recursive: true });
 
 const sciPlugin: FastifyPluginAsync = async (fastify) => {
     fastify.addHook('onRequest', async (request) => {
@@ -93,21 +90,13 @@ const sciPlugin: FastifyPluginAsync = async (fastify) => {
     });
 
     fastify.addHook('onResponse', async (request, reply) => {
-        const wallTimeMs = performance.now() - (request as any)._sciStart;
-        const line = {
-            profile_id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-            tool: `${request.method.toLowerCase()}-${request.routeOptions?.url || request.url}`,
-            'time.wall_time_ms': Math.round(wallTimeMs),
-            'time.wall_time_sec': +(wallTimeMs / 1000).toFixed(6),
-            'request.method': request.method,
-            'request.uri': request.url,
-            'request.response_code': reply.statusCode,
-        };
-
-        appendFileSync('/tmp/sci-profiler/sci-profiler.jsonl',
-            JSON.stringify(line) + '\n'
+        const profiled = await profileTool(
+            `${request.method.toLowerCase()}-${request.routeOptions?.url || request.url}`,
+            async () => undefined, // response already sent
         );
+
+        const line = toJsonLine(profiled);
+        appendFileSync(LOG_PATH, JSON.stringify(line) + '\n');
     });
 };
 

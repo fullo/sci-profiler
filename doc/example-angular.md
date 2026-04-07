@@ -76,17 +76,18 @@ export class SciHttpInterceptor implements HttpInterceptor {
         return next.handle(req).pipe(
             tap(event => {
                 if (event instanceof HttpResponse) {
-                    const wallTimeMs = performance.now() - startTime;
                     const inputBytes = req.body ? JSON.stringify(req.body).length : 0;
                     const outputBytes = event.body ? JSON.stringify(event.body).length : 0;
 
-                    // Log as manual measurement (bypass profileTool for sync reporting)
-                    console.log(JSON.stringify({
-                        tool: `http-${req.method.toLowerCase()}-${new URL(req.url).pathname}`,
-                        'time.wall_time_ms': Math.round(wallTimeMs),
-                        'io.input_bytes': inputBytes,
-                        'io.output_bytes': outputBytes,
-                    }));
+                    // Use profileTool to get proper SCI calculation
+                    profileTool(
+                        `http-${req.method.toLowerCase()}-${new URL(req.url).pathname}`,
+                        async () => event.body,
+                        inputBytes,
+                        () => outputBytes,
+                    ).then(profiled => {
+                        console.log(JSON.stringify(toJsonLine(profiled)));
+                    });
                 }
             })
         );
@@ -165,23 +166,25 @@ import { profileTool, toJsonLine } from 'sci-profiler/src/sciProfiler';
 import { appendFileSync } from 'fs';
 
 server.get('*', async (req, res) => {
-    const result = await profileTool(
+    let html: string;
+    const profiled = await profileTool(
         `ssr-${req.url}`,
         async () => {
-            return await renderModule(AppServerModule, {
+            html = await renderModule(AppServerModule, {
                 document: indexHtml,
                 url: req.url,
             });
+            return html;
         },
         0,
-        (html) => html.length,
+        (h) => h.length,
     );
 
     appendFileSync('/tmp/sci-profiler/sci-profiler.jsonl',
-        JSON.stringify(toJsonLine(result)) + '\n'
+        JSON.stringify(toJsonLine(profiled)) + '\n'
     );
 
-    res.send(result);
+    res.send(html!); // send the rendered HTML, not the ProfileResult
 });
 ```
 

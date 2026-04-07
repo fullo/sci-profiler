@@ -76,7 +76,7 @@ If any function exceeds its threshold, investigate before pushing.
 - `doc/example-angular.md` — Angular integration guide
 - `doc/example-vite.md` — Vite / build tools integration guide
 - `doc/example-node.md` — Node.js / Express / Fastify integration guide
-- `.github/workflows/ci.yml` — GitHub Actions CI (test + build on Node 18/20/22)
+- `.github/workflows/ci.yml` — GitHub Actions CI (test + build on Node 20/22/24)
 
 ### Core Components (all in `src/sciProfiler.ts`)
 

@@ -37,15 +37,18 @@ export function useSciProfile() {
         inputBytes?: number,
         measureOutput?: (result: T) => number,
     ): Promise<T> => {
-        const result = await profileTool(name, async () => {
-            return operation();
+        // Capture the operation result inside the profiled closure
+        let operationResult: T;
+        const profiled = await profileTool(name, async () => {
+            operationResult = await operation();
+            return operationResult;
         }, inputBytes, measureOutput);
 
-        printResult(result);
-        results.current.push(result);
+        printResult(profiled);
+        results.current.push(profiled);
 
-        // Return the original operation result (unwrap from profiling)
-        return operation();
+        // Return the operation result, not the ProfileResult
+        return operationResult!;
     }, []);
 
     return { profile, results: results.current };
@@ -64,21 +67,23 @@ export function UserList() {
 
     useEffect(() => {
         (async () => {
-            const result = await profileTool(
+            let fetchedUsers: any[];
+            const profiled = await profileTool(
                 'fetch-users',
                 async () => {
                     const res = await fetch('/api/users');
-                    return res.json();
+                    fetchedUsers = await res.json();
+                    return fetchedUsers;
                 },
                 0,
                 (data) => JSON.stringify(data).length,
             );
 
-            setUsers(result); // profileTool returns the operation result
+            setUsers(fetchedUsers!); // use the captured data, not ProfileResult
 
             // Send SCI data to your analytics
             if (process.env.NODE_ENV === 'development') {
-                console.log(JSON.stringify(toJsonLine(result)));
+                console.log(JSON.stringify(toJsonLine(profiled)));
             }
         })();
     }, []);
@@ -119,21 +124,21 @@ import { profileTool, toJsonLine } from 'sci-profiler/src/sciProfiler';
 import { appendFileSync } from 'fs';
 
 export async function getServerSideProps(context) {
-    const result = await profileTool(
+    let data: any;
+    const profiled = await profileTool(
         'ssr-dashboard',
         async () => {
-            const data = await fetchDashboardData(context.params.id);
-            return { props: { data } };
+            data = await fetchDashboardData(context.params.id);
+            return data;
         },
     );
 
     // Append to JSONL log (same format as sci-profiler-php)
     appendFileSync('/tmp/sci-profiler/sci-profiler.jsonl',
-        JSON.stringify(toJsonLine(result)) + '\n'
+        JSON.stringify(toJsonLine(profiled)) + '\n'
     );
 
-    // profileTool returns the operation result
-    return { props: { data: result } };
+    return { props: { data } };
 }
 ```
 
@@ -148,17 +153,19 @@ import { profileTool, generateJsonLines } from 'sci-profiler/src/sciProfiler';
 const buildResults = [];
 
 export async function getStaticProps({ params }) {
-    const result = await profileTool(
+    let props: any;
+    const profiled = await profileTool(
         `ssg-post-${params.slug}`,
         async () => {
             const post = await getPostBySlug(params.slug);
             const html = await markdownToHtml(post.content);
-            return { props: { post: { ...post, html } } };
+            props = { post: { ...post, html } };
+            return props;
         },
     );
 
-    buildResults.push(result);
-    return result; // profileTool returns the operation result
+    buildResults.push(profiled);
+    return { props };
 }
 
 // In a build script, after all pages are generated:

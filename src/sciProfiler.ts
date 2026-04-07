@@ -60,10 +60,21 @@ const _isNode = typeof process !== 'undefined' && process.versions != null && pr
 // ── Environment Variable Support (Node.js only) ────────────────────────────
 if (_isNode) {
     const env = process.env;
-    if (env.SCI_PROFILER_DEVICE_POWER_W) _config.devicePowerW = Number(env.SCI_PROFILER_DEVICE_POWER_W);
-    if (env.SCI_PROFILER_CARBON_INTENSITY) _config.carbonIntensity = Number(env.SCI_PROFILER_CARBON_INTENSITY);
-    if (env.SCI_PROFILER_EMBODIED_TOTAL_G) _config.embodiedTotalG = Number(env.SCI_PROFILER_EMBODIED_TOTAL_G);
-    if (env.SCI_PROFILER_LIFETIME_HOURS) _config.lifetimeHours = Number(env.SCI_PROFILER_LIFETIME_HOURS);
+    const parseNum = (val: string | undefined): number | undefined => {
+        if (val === undefined) return undefined;
+        const n = Number(val);
+        return Number.isFinite(n) ? n : undefined;
+    };
+    const parsed = {
+        devicePowerW: parseNum(env.SCI_PROFILER_DEVICE_POWER_W),
+        carbonIntensity: parseNum(env.SCI_PROFILER_CARBON_INTENSITY),
+        embodiedTotalG: parseNum(env.SCI_PROFILER_EMBODIED_TOTAL_G),
+        lifetimeHours: parseNum(env.SCI_PROFILER_LIFETIME_HOURS),
+    };
+    if (parsed.devicePowerW !== undefined) _config.devicePowerW = parsed.devicePowerW;
+    if (parsed.carbonIntensity !== undefined) _config.carbonIntensity = parsed.carbonIntensity;
+    if (parsed.embodiedTotalG !== undefined) _config.embodiedTotalG = parsed.embodiedTotalG;
+    if (parsed.lifetimeHours !== undefined) _config.lifetimeHours = parsed.lifetimeHours;
     if (env.SCI_PROFILER_LCA_SOURCE) _config.lcaSource = env.SCI_PROFILER_LCA_SOURCE;
     if (env.SCI_PROFILER_MACHINE) _config.machine = env.SCI_PROFILER_MACHINE;
 }
